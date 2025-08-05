@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import io
-from Scheduler2 import build_schedule  # use the scheduling core module
+from Scheduler2 import build_schedule, MAX_PER_SHIFT  # import max per shift constant
 
 # ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(page_title="PEMRAP Volunteer Scheduler", layout="wide")
@@ -54,24 +54,23 @@ if st.session_state.sched_df is not None:
     for _, row in sched_df.iterrows():
         day = row['Day']
         sh = row['Shift']
-        # skip any rows with missing day/shift
         if not day or not sh or day not in grid.get(sh, {}):
             continue
         grid[sh][day].append((row['Name'], row.get('Role',''), row['Fallback']))
 
     # ── HTML grid ──────────────────────────────────────────────────────────────
     html = "<table style='border-collapse: collapse; width:100%;'>"
-    # Header row
     html += "<tr><th style='border:1px solid #ddd; padding:8px;'></th>"
     for d in days:
         html += f"<th style='border:1px solid #ddd; padding:8px;'>{d}</th>"
     html += "</tr>"
-    # Body rows
     for sh in shifts:
-        for i in range(MAX_PER_SHIFT if 'MAX_PER_SHIFT' in globals() else 3):
+        for i in range(MAX_PER_SHIFT):
             html += "<tr>"
             if i == 0:
-                html += (f"<td rowspan='{MAX_PER_SHIFT}' style='border:1px solid #ddd; padding:8px; vertical-align:middle;'>{sh}</td>")
+                html += (
+                    f"<td rowspan='{MAX_PER_SHIFT}' style='border:1px solid #ddd; padding:8px; vertical-align:middle;'>{sh}</td>"
+                )
             for d in days:
                 cell = ""
                 peoples = grid.get(sh, {}).get(d, [])
@@ -116,23 +115,21 @@ if st.session_state.sched_df is not None:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
             wb = writer.book
-            # Format definitions
             border_fmt = wb.add_format({"border":1})
             mentor_fmt = wb.add_format({"border":1,"bold":True})
             mentee_fmt = wb.add_format({"border":1,"bg_color":"#ADD8E6"})
             volunteer_fmt = wb.add_format({"border":1})
 
-            # Grid sheet
             ws = wb.add_worksheet("Grid")
             ws.write_blank(0,0,None,border_fmt)
-            for idx,d in enumerate(days, start=1):
+            for idx, d in enumerate(days, start=1):
                 ws.write(0, idx, d, border_fmt)
             r = 1
             for sh in shifts:
                 ws.merge_range(r,0,r+MAX_PER_SHIFT-1,0,sh,border_fmt)
                 for i in range(MAX_PER_SHIFT):
-                    for c,d in enumerate(days, start=1):
-                        peoples = grid.get(sh,{}).get(d, [])
+                    for c, d in enumerate(days, start=1):
+                        peoples = grid.get(sh, {}).get(d, [])
                         if i < len(peoples):
                             name, role, is_fb = peoples[i]
                             fmt = mentor_fmt if role=='mentor' else mentee_fmt if role=='mentee' else volunteer_fmt
@@ -144,7 +141,6 @@ if st.session_state.sched_df is not None:
             ws.set_column(0,0,16)
             ws.set_column(1,len(days),22)
 
-            # Other sheets
             sched_df.drop(columns=['Day','Shift']).to_excel(writer, sheet_name="Schedule", index=False)
             unassigned_df.to_excel(writer, sheet_name="Unassigned", index=False)
             breakdown_df.to_excel(writer, sheet_name="Preferences", index=False)
