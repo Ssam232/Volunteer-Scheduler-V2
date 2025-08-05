@@ -45,9 +45,18 @@ if st.session_state.sched_df is not None:
     unassigned_df = st.session_state.unassigned_df
     breakdown_df = st.session_state.breakdown_df
 
-    # Dynamically derive days and shifts present
-    days = list(sched_df['Day'].unique())
-    shifts = list(sched_df['Shift'].unique())
+        # Order days Monday→Sunday and shifts chronologically
+    desired_days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+    present_days = [d for d in desired_days if d in sched_df['Day'].unique()]
+    days = present_days
+    # Chronologically sort shifts by start time (HH:MM)
+    raw_shifts = sched_df['Shift'].dropna().unique().tolist()
+    def parse_start(slot):
+        try:
+            return int(slot.split('-')[0].replace(':',''))
+        except:
+            return slot
+    shifts = sorted(raw_shifts, key=parse_start)
 
     # Build grid dict
     grid = {sh: {d: [] for d in days} for sh in shifts}
