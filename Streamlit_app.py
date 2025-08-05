@@ -39,7 +39,7 @@ if st.session_state.sched_df is not None:
     # Build grid dict
     grid = {sh: {d: [] for d in days} for sh in shifts}
     for _, row in sched_df.iterrows():
-        grid[row['Shift']][row['Day']].append((row['Name'], row['Role'], row['Fallback']))
+         grid[row['Shift']][row['Day']].append((row['Name'], row['Role'], row['Fallback']))
 
     # ── HTML grid ──────────────────────────────────────────────────────────────
     html = "<table style='border-collapse: collapse; width:100%;'>"
@@ -158,4 +158,5 @@ if st.session_state.sched_df is not None:
     )
 
 # Note: To reset and start over, just hit your browser’s Refresh (F5).
+
 
