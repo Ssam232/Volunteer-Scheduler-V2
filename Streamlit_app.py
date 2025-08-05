@@ -1,53 +1,45 @@
 import streamlit as st
 import pandas as pd
 import io
-from Scheduler2 import build_schedule  # use the scheduling core module
+from Scheduler2 import build_schedule  # use the new Scheduler2 module
 
 # ── Page config ──────────────────────────────────────────────────────────────
-st.set_page_config(page_title="PEMRAP Volunteer SchedulerV2", layout="wide")
-st.title("📅 PEMRAP Volunteer SchedulerV2")
+st.set_page_config(page_title="PEMRAP Volunteer Scheduler", layout="wide")
+st.title("📅 PEMRAP Volunteer Scheduler")
 
 # ── Session state init ───────────────────────────────────────────────────────
 if "sched_df" not in st.session_state:
-    st.session_state.sched_df = None
-    st.session_state.unassigned_df = None
-    st.session_state.breakdown_df = None
+    st.session_state.sched_df       = None
+    st.session_state.unassigned_df  = None
+    st.session_state.breakdown_df   = None
 
 # ── File upload & Run Scheduler ──────────────────────────────────────────────
 uploaded = st.file_uploader("Upload survey info.xlsx", type="xlsx")
 if uploaded and st.button("Run Scheduler"):
     df = pd.read_excel(uploaded)
     sched_df, unassigned_df, breakdown_df = build_schedule(df)
-
-    # Robustly parse Day and Shift from 'Time Slot'
-    if 'Time Slot' in sched_df.columns:
-        ts = sched_df['Time Slot'].astype(str)
-        parts = ts.str.split(r"\s+", n=1, expand=True)
-        sched_df['Day'] = parts[0].fillna('')
-        sched_df['Shift'] = parts[1].fillna('')
-    else:
-        sched_df['Day'] = ''
-        sched_df['Shift'] = ''
-
-    st.session_state.sched_df = sched_df
+    # Parse day and shift for grid layout
+    sched_df[['Day','Shift']] = (
+        sched_df['Time Slot']
+        .str.split(pat=' ', n=1, expand=True)
+    )
+    st.session_state.sched_df      = sched_df
     st.session_state.unassigned_df = unassigned_df
-    st.session_state.breakdown_df = breakdown_df
+    st.session_state.breakdown_df  = breakdown_df
 
 # ── Display once scheduled ──────────────────────────────────────────────────
 if st.session_state.sched_df is not None:
-    sched_df = st.session_state.sched_df
+    sched_df      = st.session_state.sched_df
     unassigned_df = st.session_state.unassigned_df
-    breakdown_df = st.session_state.breakdown_df
+    breakdown_df  = st.session_state.breakdown_df
 
-    days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+    days   = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
     shifts = ['10:00-14:00','14:00-18:00','18:00-22:00']
 
     # Build grid dict
     grid = {sh: {d: [] for d in days} for sh in shifts}
     for _, row in sched_df.iterrows():
-        grid[row['Shift']][row['Day']].append(
-            (row['Name'], row.get('Role',''), row['Fallback'])
-        )
+        grid[row['Shift']][row['Day']].append((row['Name'], row.get('Role', ''), row['Fallback']))
 
     # ── HTML grid ──────────────────────────────────────────────────────────────
     html = "<table style='border-collapse: collapse; width:100%;'>"
@@ -59,16 +51,18 @@ if st.session_state.sched_df is not None:
             html += "<tr>"
             if i == 0:
                 html += (
-                    f"<td rowspan='3' style='border:1px solid #ddd; padding:8px; vertical-align:middle;'>{sh}</td>"
+                    f"<td rowspan='3' style='border:1px solid #ddd; "
+                    f"padding:8px; vertical-align:middle;'>{sh}</td>"
                 )
             for d in days:
                 cell = ""
                 peoples = grid[sh][d]
                 if i < len(peoples):
                     name, role, is_fb = peoples[i]
-                    fmt_open = fmt_close = ""
+                    fmt_open = ""
+                    fmt_close = ""
                     if role == 'mentor':
-                        fmt_open, fmt_close = "<strong>", "</strong>"
+                        fmt_open = "<strong>"; fmt_close = "</strong>"
                     elif role == 'mentee':
                         fmt_open = "<span style='background:#add8e6; padding:2px 4px; border-radius:3px'>"
                         fmt_close = "</span>"
@@ -108,9 +102,9 @@ if st.session_state.sched_df is not None:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
             wb = writer.book
-            border_fmt = wb.add_format({"border":1})
-            mentor_fmt = wb.add_format({"border":1,"bold":True})
-            mentee_fmt = wb.add_format({"border":1,"bg_color":"#ADD8E6"})
+            border_fmt    = wb.add_format({"border":1})
+            mentor_fmt    = wb.add_format({"border":1,"bold":True})
+            mentee_fmt    = wb.add_format({"border":1,"bg_color":"#ADD8E6"})
             volunteer_fmt = wb.add_format({"border":1})
 
             # Grid sheet
@@ -118,9 +112,9 @@ if st.session_state.sched_df is not None:
             ws.write_blank(0, 0, None, border_fmt)
             for c, d in enumerate(days, start=1):
                 ws.write(0, c, d, border_fmt)
-            row_idx = 1
+            row = 1
             for sh in shifts:
-                ws.merge_range(row_idx, 0, row_idx+2, 0, sh, border_fmt)
+                ws.merge_range(row, 0, row+2, 0, sh, border_fmt)
                 for i in range(3):
                     for c, d in enumerate(days, start=1):
                         peoples = grid[sh][d]
@@ -131,22 +125,28 @@ if st.session_state.sched_df is not None:
                                 mentee_fmt    if role == "mentee" else
                                 volunteer_fmt
                             )
-                            ws.write(row_idx+i, c, name + (" *" if is_fb else ""), fmt)
+                            ws.write(row+i, c, name + (" *" if is_fb else ""), fmt)
                         else:
-                            ws.write_blank(row_idx+i, c, None, border_fmt)
-                ws.set_row(row_idx, 30)
-                ws.set_row(row_idx+1, 30)
-                ws.set_row(row_idx+2, 30)
-                row_idx += 3
+                            ws.write_blank(row+i, c, None, border_fmt)
+                ws.set_row(row,   30)
+                ws.set_row(row+1, 30)
+                ws.set_row(row+2, 30)
+                row += 3
             ws.set_column(0, 0, 16)
             ws.set_column(1, len(days), 22)
 
-            # Other sheets
-            sched_df.drop(columns=['Day','Shift']).to_excel(writer, sheet_name="Schedule", index=False)
+            # Schedule, Unassigned, Preferences sheets
+            sched_df.drop(columns=['Day','Shift']) \
+                .to_excel(writer, sheet_name="Schedule", index=False)
             unassigned_df.to_excel(writer, sheet_name="Unassigned", index=False)
             breakdown_df.to_excel(writer, sheet_name="Preferences", index=False)
-            fallback_df = sched_df.loc[sched_df["Fallback"], ["Time Slot","Name","Role"]]
+
+            # Fallback sheet
+            fallback_df = sched_df.loc[
+                sched_df["Fallback"], ["Time Slot","Name","Role"]
+            ]
             fallback_df.to_excel(writer, sheet_name="Fallback", index=False)
+
         return output.getvalue()
 
     excel_bytes = to_excel_bytes()
@@ -157,4 +157,4 @@ if st.session_state.sched_df is not None:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-# Note: To reset and start over, refresh the page (F5).
+# Note: To reset and start over, just hit your browser’s Refresh (F5).
