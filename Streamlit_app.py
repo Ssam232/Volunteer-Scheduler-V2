@@ -4,8 +4,8 @@ import io
 from Scheduler2 import build_schedule  # use the new Scheduler2 module
 
 # ── Page config ──────────────────────────────────────────────────────────────
-st.set_page_config(page_title="PEMRAP Volunteer Scheduler", layout="wide")
-st.title("📅 PEMRAP Volunteer Scheduler")
+st.set_page_config(page_title="PEMRAP Volunteer Scheduler V2", layout="wide")
+st.title("📅 PEMRAP Volunteer Scheduler V2")
 
 # ── Session state init ───────────────────────────────────────────────────────
 if "sched_df" not in st.session_state:
@@ -158,3 +158,4 @@ if st.session_state.sched_df is not None:
     )
 
 # Note: To reset and start over, just hit your browser’s Refresh (F5).
+
